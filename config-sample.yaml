@@ -1,0 +1,10 @@
+symbols:
+  - symbol: "ROG.SW"
+    filepath: "./roche.txt"
+    source: "yfinance"
+  - symbol: "amundi-msci-wrld-ae-c"
+    filepath: "./amundi_msci_world_ae_cc.txt"
+    source: "investing"
+
+settings:
+  sleep_interval: 300
