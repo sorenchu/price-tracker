@@ -8,7 +8,6 @@ from typing import Dict, Any, List
 import requests
 from bs4 import BeautifulSoup
 
-# Define a dictionary to map configuration strings to logging constants
 LOG_LEVEL_MAP = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,
@@ -37,7 +36,13 @@ def get_current_value(symbol: str) -> str:
         return f"yfinance Error: {e}"
 
 def get_fund_value(fund_url: str) -> str:
+    """
+    Scrapes the most recent value of a fund from Investing.com.
+    The output value is formatted using a comma as the decimal separator.
+    """
+
     try:
+        logging.info(f"Fetching data for Investing.com fund {fund_url}...")
         url = f"https://es.investing.com/funds/{fund_url}-historical-data"
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=10)
@@ -65,6 +70,27 @@ def get_fund_value(fund_url: str) -> str:
     except ValueError:
         logging.error(f"Format Error: Extracted value '{vl_str}' is not valid at URL {url}.")
         return f"Format Error: Extracted value '{vl_str}' is not valid."
+
+
+def is_market_open(symbol: str) -> bool:
+    """
+    Checks the market status of a ticker by looking at the 'marketState' 
+    property in the ticker's info.
+    Returns True if the market is in 'REGULAR', 'PRE', or 'POST' state.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        # Fetch a small subset of info to get the market state
+        info = ticker.info
+        is_open = info.get('marketState') in ['REGULAR', 'PRE', 'POST']
+        if is_open:
+            logging.debug(f"Market for {symbol} is OPEN (marketState: {info.get('marketState')}).")
+        else:
+            logging.debug(f"Market for {symbol} is CLOSED (marketState: {info.get('marketState')}).")
+        return is_open
+    except Exception as e:
+        logging.error(f"Error checking market status for {symbol}: {e}")
+        return False
 
 def load_config(config_path: str) -> Dict[str, Any]:
     """
@@ -179,8 +205,20 @@ def main():
             filepath = item['filepath']
             source = item['source']
             if source == "investing":
+                if os.path.exists(filepath):
+                    try:
+                        mtime = os.path.getmtime(filepath)
+                        age_seconds = time.time() - mtime
+                        if age_seconds < 24 * 3600:
+                            logging.info(f"Skipping fetch for {symbol}; {filepath} was updated {age_seconds/3600:.2f}h ago.")
+                            continue
+                    except OSError as e:
+                        logging.warning(f"Could not determine modification time for {filepath}: {e}")
                 value = get_fund_value(symbol)
             else:
+                if not is_market_open(symbol):
+                    logging.info(f"Market for {symbol} appears closed; skipping fetch.")
+                    continue
                 value = get_current_value(symbol)
 
             try:
