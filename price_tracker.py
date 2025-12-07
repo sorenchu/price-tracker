@@ -215,7 +215,9 @@ def main():
         logging.info("\nStarting fetch cycle...")
         seconds_to_monday = get_time_to_next_monday()
         if seconds_to_monday > 0:
-            logging.info(f"Weekend detected. Sleeping for {seconds_to_monday} seconds until Monday...")
+            hours, remainder = divmod(seconds_to_monday, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            logging.info(f"Weekend detected. Sleeping for {hours}h {minutes}m {seconds}s until Monday...")
             time.sleep(seconds_to_monday)
         for item in symbols_config:
             symbol = item['symbol']
