@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Any, List
 import requests
 from bs4 import BeautifulSoup
+import datetime
 
 LOG_LEVEL_MAP = {
     "DEBUG": logging.DEBUG,
@@ -15,6 +16,21 @@ LOG_LEVEL_MAP = {
     "ERROR": logging.ERROR,
     "CRITICAL": logging.CRITICAL,
 }
+
+def get_time_to_next_monday() -> int:
+    """
+    Returns seconds until next Monday 00:00 if today is Saturday or Sunday, else 0.
+    """
+    SATURDAY = 5
+    DAYS_OF_WEEK = 7
+    today = datetime.datetime.now()
+    weekday = today.weekday()
+    if weekday >= SATURDAY:
+        days_until_monday = DAYS_OF_WEEK - weekday
+        next_monday = (today + datetime.timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        seconds_to_sleep = int((next_monday - today).total_seconds())
+        return seconds_to_sleep
+    return 0
 
 def get_current_value(symbol: str) -> str:
     """
@@ -127,14 +143,11 @@ def load_config(config_path: str) -> Dict[str, Any]:
             config['settings']['sleep_interval'] = 30
 
     log_level_str = config['settings'].get('log_level', 'INFO').upper()
-    if log_level_str not in LOG_LEVEL_MAP:
-        logging.warning(f"Configuration Warning: Unknown log_level '{log_level_str}'. Defaulting to INFO.")
-        log_level_str = 'INFO'
+    config['settings']['log_level'] = LOG_LEVEL_MAP.get(log_level_str, logging.INFO)
+    config['settings'].setdefault('log_file', "./price_tracker.log")
+    config['settings'].setdefault('max_log_size_mb', 5)
+    config['settings'].setdefault('backup_count', 3)
 
-    if 'log_file' not in config['settings']:
-        config['settings']['log_file'] = "price_tracker.log"
-
-    config['settings']['log_level'] = LOG_LEVEL_MAP[log_level_str]
     return config
 
 
@@ -200,6 +213,10 @@ def main():
 
     while True:
         logging.info("\nStarting fetch cycle...")
+        seconds_to_monday = get_time_to_next_monday()
+        if seconds_to_monday > 0:
+            logging.info(f"Weekend detected. Sleeping for {seconds_to_monday} seconds until Monday...")
+            time.sleep(seconds_to_monday)
         for item in symbols_config:
             symbol = item['symbol']
             filepath = item['filepath']
