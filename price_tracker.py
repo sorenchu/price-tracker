@@ -1,3 +1,4 @@
+import sys
 import yfinance as yf
 import time
 import argparse
@@ -171,6 +172,11 @@ def setup_cli() -> argparse.Namespace:
         action='store_true',
         help="Shows the currently configured refresh interval (set in the YAML file)."
     )
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help="Bypass market status checks and file age checks to force updates."
+    )
 
     return parser.parse_args()
 
@@ -180,7 +186,9 @@ def main():
     args = setup_cli()
 
     try:
+
         config = load_config(args.config)
+        force = args.force
 
         symbols_config: List[Dict[str, str]] = config['symbols']
         sleep_interval = config['settings']['sleep_interval']
@@ -207,14 +215,14 @@ def main():
                 os.makedirs(output_dir, exist_ok=True)
                 logging.info(f"Created output directory: {output_dir}")
 
-    except Exception:
-        logging.error("Exiting due to fatal configuration or file system error.")
+    except Exception as e:
+        logging.error("Exiting due to fatal configuration or file system error.", e)
         return
 
     while True:
         logging.info("\nStarting fetch cycle...")
         seconds_to_monday = get_time_to_next_monday()
-        if seconds_to_monday > 0:
+        if seconds_to_monday > 0 and not force:
             hours, remainder = divmod(seconds_to_monday, 3600)
             minutes, seconds = divmod(remainder, 60)
             logging.info(f"Weekend detected. Sleeping for {hours}h {minutes}m {seconds}s until Monday...")
@@ -228,14 +236,14 @@ def main():
                     try:
                         mtime = os.path.getmtime(filepath)
                         age_seconds = time.time() - mtime
-                        if age_seconds < 24 * 3600:
+                        if age_seconds < 24 * 3600 and not force:
                             logging.info(f"Skipping fetch for {symbol}; {filepath} was updated {age_seconds/3600:.2f}h ago.")
                             continue
                     except OSError as e:
                         logging.warning(f"Could not determine modification time for {filepath}: {e}")
                 value = get_fund_value(symbol)
             else:
-                if not is_market_open(symbol):
+                if not is_market_open(symbol) and not force:
                     logging.info(f"Market for {symbol} appears closed; skipping fetch.")
                     continue
                 value = get_current_value(symbol)
@@ -246,7 +254,9 @@ def main():
                 logging.info(f"  -> {symbol:<10} | Value: {value:<15} | Wrote to: {filepath}")
             except IOError as e:
                 logging.error(f"  -> {symbol:<10} | Error writing to file {filepath}: {e}")
-
+        if force:
+            logging.info("Force mode enabled. Cycle complete. Exiting.")
+            sys.exit(0)
         logging.info(f"Cycle complete. Waiting {sleep_interval} seconds...")
         time.sleep(sleep_interval)
 
