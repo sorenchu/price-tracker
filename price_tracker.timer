@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Price Tracker every 300s from Monday to Friday
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* *:0/5:0
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

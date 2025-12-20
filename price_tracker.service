@@ -1,0 +1,15 @@
+[Unit]
+Description=Price Tracker Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/usr/local/share/price-tracker/
+ExecStart=/usr/bin/python price_tracker.py -c /usr/local/share/price-tracker/config.yml
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
