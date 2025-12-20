@@ -186,12 +186,10 @@ def main():
     args = setup_cli()
 
     try:
-
         config = load_config(args.config)
         force = args.force
 
         symbols_config: List[Dict[str, str]] = config['symbols']
-        sleep_interval = config['settings']['sleep_interval']
         log_level = config['settings']['log_level']
         log_file = config['settings']['log_file']
 
@@ -202,9 +200,8 @@ def main():
             datefmt='%Y-%m-%d %H:%M:%S'
         )
 
-        logging.info("--- Price Tracker Initialized ---")
+        logging.info("--- Execution Cycle Start ---")
         logging.debug(f"Tracking {len(symbols_config)} symbols.")
-        logging.debug(f"Refresh interval: {sleep_interval} seconds.")
         logging.debug(f"Logging level set to: {logging.getLevelName(log_level)}")
         logging.debug("---------------------------------")
 
@@ -219,46 +216,33 @@ def main():
         logging.error("Exiting due to fatal configuration or file system error.", e)
         return
 
-    while True:
-        logging.info("\nStarting fetch cycle...")
-        seconds_to_monday = get_time_to_next_monday()
-        if seconds_to_monday > 0 and not force:
-            hours, remainder = divmod(seconds_to_monday, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            logging.info(f"Weekend detected. Sleeping for {hours}h {minutes}m {seconds}s until Monday...")
-            time.sleep(seconds_to_monday)
-        for item in symbols_config:
-            symbol = item['symbol']
-            filepath = item['filepath']
-            source = item['source']
-            if source == "investing":
-                if os.path.exists(filepath):
-                    try:
-                        mtime = os.path.getmtime(filepath)
-                        age_seconds = time.time() - mtime
-                        if age_seconds < 24 * 3600 and not force:
-                            logging.info(f"Skipping fetch for {symbol}; {filepath} was updated {age_seconds/3600:.2f}h ago.")
-                            continue
-                    except OSError as e:
-                        logging.warning(f"Could not determine modification time for {filepath}: {e}")
-                value = get_fund_value(symbol)
-            else:
-                if not is_market_open(symbol) and not force:
-                    logging.info(f"Market for {symbol} appears closed; skipping fetch.")
-                    continue
-                value = get_current_value(symbol)
+    for item in symbols_config:
+        symbol = item['symbol']
+        filepath = item['filepath']
+        source = item['source']
+        if source == "investing":
+            if os.path.exists(filepath):
+                try:
+                    mtime = os.path.getmtime(filepath)
+                    age_seconds = time.time() - mtime
+                    if age_seconds < 24 * 3600 and not force:
+                        logging.info(f"Skipping fetch for {symbol}; {filepath} was updated {age_seconds/3600:.2f}h ago.")
+                        continue
+                except OSError as e:
+                    logging.warning(f"Could not determine modification time for {filepath}: {e}")
+            value = get_fund_value(symbol)
+        else:
+            if not is_market_open(symbol) and not force:
+                logging.info(f"Market for {symbol} appears closed; skipping fetch.")
+                continue
+            value = get_current_value(symbol)
 
-            try:
-                with open(filepath, "w") as f:
-                    f.write(value)
-                logging.info(f"  -> {symbol:<10} | Value: {value:<15} | Wrote to: {filepath}")
-            except IOError as e:
-                logging.error(f"  -> {symbol:<10} | Error writing to file {filepath}: {e}")
-        if force:
-            logging.info("Force mode enabled. Cycle complete. Exiting.")
-            sys.exit(0)
-        logging.info(f"Cycle complete. Waiting {sleep_interval} seconds...")
-        time.sleep(sleep_interval)
+        try:
+            with open(filepath, "w") as f:
+                f.write(value)
+            logging.info(f"  -> {symbol:<10} | Value: {value:<15} | Wrote to: {filepath}")
+        except IOError as e:
+            logging.error(f"  -> {symbol:<10} | Error writing to file {filepath}: {e}")
 
 if __name__ == "__main__":
     main()
