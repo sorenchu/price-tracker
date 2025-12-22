@@ -18,21 +18,6 @@ LOG_LEVEL_MAP = {
     "CRITICAL": logging.CRITICAL,
 }
 
-def get_time_to_next_monday() -> int:
-    """
-    Returns seconds until next Monday 00:00 if today is Saturday or Sunday, else 0.
-    """
-    SATURDAY = 5
-    DAYS_OF_WEEK = 7
-    today = datetime.datetime.now()
-    weekday = today.weekday()
-    if weekday >= SATURDAY:
-        days_until_monday = DAYS_OF_WEEK - weekday
-        next_monday = (today + datetime.timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-        seconds_to_sleep = int((next_monday - today).total_seconds())
-        return seconds_to_sleep
-    return 0
-
 def get_current_value(symbol: str) -> str:
     """
     Obtains the most recent closing price for a given financial symbol using yfinance.
@@ -47,10 +32,10 @@ def get_current_value(symbol: str) -> str:
         if not data.empty:
             last_value = data['Close'].iloc[-1]
             return f"{last_value:.6f}".replace(".", ",")
-        return "No data found via yfinance."
+        return "Error: No data found via yfinance."
     except Exception as e:
         logging.error(f"yfinance Error for {symbol}: {e}")
-        return f"yfinance Error: {e}"
+        return f"Error: {e}"
 
 def get_fund_value(fund_url: str) -> str:
     """
@@ -66,7 +51,7 @@ def get_fund_value(fund_url: str) -> str:
         response.raise_for_status()
     except requests.RequestException as e:
         logging.error(f"Connection Error for URL {url}: {e}")
-        return f"Connection Error: {e}"
+        return f"Error: {e}"
 
     soup = BeautifulSoup(response.text, 'html.parser')
     table = soup.find('table', {'class': 'genTbl closedTbl historicalTbl'})
@@ -86,7 +71,7 @@ def get_fund_value(fund_url: str) -> str:
         return f"{value_float:.6f}".replace('.', ',')
     except ValueError:
         logging.error(f"Format Error: Extracted value '{vl_str}' is not valid at URL {url}.")
-        return f"Format Error: Extracted value '{vl_str}' is not valid."
+        return f"Error: Extracted value '{vl_str}' is not valid."
 
 
 def is_market_open(symbol: str) -> bool:
@@ -138,10 +123,6 @@ def load_config(config_path: str) -> Dict[str, Any]:
 
     if 'settings' not in config:
         config['settings'] = {}
-
-    if 'sleep_interval' not in config['settings']:
-            logging.warning("Configuration Warning: 'sleep_interval' not found. Defaulting to 30 seconds.")
-            config['settings']['sleep_interval'] = 30
 
     log_level_str = config['settings'].get('log_level', 'INFO').upper()
     config['settings']['log_level'] = LOG_LEVEL_MAP.get(log_level_str, logging.INFO)
@@ -238,6 +219,9 @@ def main():
             value = get_current_value(symbol)
 
         try:
+            if value.startswith("Error:"):
+                logging.error(f"  -> {symbol:<10} | {value}")
+                continue
             with open(filepath, "w") as f:
                 f.write(value)
             logging.info(f"  -> {symbol:<10} | Value: {value:<15} | Wrote to: {filepath}")
