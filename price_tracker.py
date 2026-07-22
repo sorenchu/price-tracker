@@ -37,41 +37,20 @@ def get_current_value(symbol: str) -> str:
         logging.error(f"yfinance Error for {symbol}: {e}")
         return f"Error: {e}"
 
-def get_fund_value(fund_url: str) -> str:
+def get_fund_value(isin: str) -> str:
     """
-    Scrapes the most recent value of a fund from Investing.com.
-    The output value is formatted using a comma as the decimal separator.
+    Get the latest value from YFinance.
     """
 
     try:
-        logging.info(f"Fetching data for Investing.com fund {fund_url}...")
-        url = f"https://es.investing.com/funds/{fund_url}-historical-data"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        logging.error(f"Connection Error for URL {url}: {e}")
+        logging.info(f"Fetching data for yfinance fund with ISIN {isin}...")
+
+        ticker = yf.Ticker(isin)
+        data = ticker.history()["Close"].values[-1]  # Get the last closing value
+        return f"{data:.6f}".replace(".", ",")
+    except Exception as e:
+        logging.error(f"yfinance Error for ISIN {isin}: {e}")
         return f"Error: {e}"
-
-    soup = BeautifulSoup(response.text, 'html.parser')
-    table = soup.find('table', {'class': 'genTbl closedTbl historicalTbl'})
-    if not table:
-        logging.error(f"No historical data table found at URL {url}.")
-        return "Error: No historical data table found."
-
-    first_row = table.find('tbody').find('tr')
-    if not first_row:
-        logging.error(f"No recent data row found in the table at URL {url}.")
-        return "Error: No recent data row found."
-
-    vl_str = first_row.find_all('td')[1].text.strip()
-    vl_clean = vl_str.replace('.', '').replace(',', '.')
-    try:
-        value_float = float(vl_clean)
-        return f"{value_float:.6f}".replace('.', ',')
-    except ValueError:
-        logging.error(f"Format Error: Extracted value '{vl_str}' is not valid at URL {url}.")
-        return f"Error: Extracted value '{vl_str}' is not valid."
 
 
 def is_market_open(symbol: str) -> bool:
