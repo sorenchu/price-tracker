@@ -6,9 +6,6 @@ import yaml
 import os
 import logging
 from typing import Dict, Any, List
-import requests
-from bs4 import BeautifulSoup
-import datetime
 
 LOG_LEVEL_MAP = {
     "DEBUG": logging.DEBUG,
@@ -179,8 +176,8 @@ def main():
     for item in symbols_config:
         symbol = item['symbol']
         filepath = item['filepath']
-        source = item['source']
-        if source == "investing":
+        type = item.get("type")
+        if type == "fund":
             if os.path.exists(filepath):
                 try:
                     mtime = os.path.getmtime(filepath)
